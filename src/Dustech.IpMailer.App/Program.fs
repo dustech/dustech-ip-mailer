@@ -3,10 +3,14 @@ open System.Net
 open System.Net.Mail
 open System.Net.Http
 
-let getPublicIp() =
+let getPublicIp () =
     async {
         use client = new HttpClient()
-        let! ip = client.GetStringAsync("https://api.ipify.org") |> Async.AwaitTask
+
+        let! ip =
+            client.GetStringAsync("https://api.ipify.org")
+            |> Async.AwaitTask
+
         return ip.Trim()
     }
 
@@ -34,20 +38,18 @@ let sendEmail lastIp currentIp =
     | ex -> printfn $"Sending email error: %s{ex.Message}"
 
 
-let checkCondition(lastIp:string,currentIp:string) =
-    not (lastIp.Equals currentIp)
+let checkCondition (lastIp, currentIp) = not (lastIp.Equals currentIp)
 
-let workerTask(startingIp) =
+let rec workerTask lastIp =
     async {
-        let mutable lastIp = startingIp
-        while true do
-            do! Async.Sleep(300000)
-            let! currentIp = getPublicIp()
-            if checkCondition(lastIp,currentIp) then                
-                printfn $"Ip changed, send email: %s{lastIp} %s{currentIp}"
-                sendEmail lastIp currentIp
-                printfn "Press Enter to exit the program..."
-                lastIp <- currentIp
+        do! Async.Sleep(1000)
+        let! currentIp = getPublicIp ()
+
+        if checkCondition (lastIp, currentIp) then
+            printfn $"Ip changed, send email: %s{lastIp} %s{currentIp}"
+            sendEmail lastIp currentIp
+            printfn "Press Enter to exit the program..."
+        return! workerTask currentIp
     }
 
 
@@ -56,9 +58,9 @@ let workerTask(startingIp) =
 let main argv =
     printfn "Press Enter to exit the program..."
     let startingIp = "1.1.1.1"
-    
+
     let cts = new System.Threading.CancellationTokenSource()
-    Async.Start(workerTask(startingIp), cts.Token)
+    Async.Start(workerTask startingIp, cts.Token)
 
     Console.ReadLine() |> ignore
 
