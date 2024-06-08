@@ -1,0 +1,25 @@
+# IDE
+.idea
+.vscode
+**/*.DotSettings.user
+
+# Build directories
+[Bb]in
+[Oo]bj
+/css/*
+styles
+
+# Test coverage
+**/*.opencover.xml
+TestResults
+
+# npm
+
+node_modules
+bootstrap.bundle.min.js
+
+# temporary folders
+
+**/fonts/*
+**/keys/*
+
