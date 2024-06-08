@@ -42,7 +42,7 @@ let checkCondition (lastIp, currentIp) = not (lastIp.Equals currentIp)
 
 let rec workerTask lastIp =
     async {
-        do! Async.Sleep(1000)
+        do! Async.Sleep(300000)
         let! currentIp = getPublicIp ()
 
         if checkCondition (lastIp, currentIp) then
