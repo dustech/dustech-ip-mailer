@@ -1,0 +1,4 @@
+#!/bin/bash
+
+docker container stop dustech-ipmailer-app && \
+docker container rm dustech-ipmailer-app
