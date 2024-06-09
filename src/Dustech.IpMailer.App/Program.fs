@@ -3,6 +3,14 @@ open System.Net
 open System.Net.Mail
 open System.Net.Http
 
+type EmailConfig = {
+    FromAddress: string
+    ToAddress: string
+    Password: string
+}
+
+let createEmailConfig f t p =  { FromAddress = f; ToAddress = t; Password = p }
+
 let getPublicIp () =
     async {
         use client = new HttpClient()
@@ -14,12 +22,12 @@ let getPublicIp () =
         return ip.Trim()
     }
 
-let sendEmail lastIp currentIp =
-    let fromAddress = ""
-    let toAddress = ""
+let sendEmail emailConfig lastIp currentIp =
+    let fromAddress = emailConfig.FromAddress
+    let toAddress = emailConfig.ToAddress
     let subject = "IP change"
     let body = $"Your ip is changed from %s{lastIp} to %s{currentIp}"
-    let password = ""
+    let password = emailConfig.Password
 
     let smtpClient = new SmtpClient("smtp.office365.com", 587)
     smtpClient.Credentials <- new NetworkCredential(fromAddress, password)
@@ -40,27 +48,54 @@ let sendEmail lastIp currentIp =
 
 let checkCondition (lastIp, currentIp) = not (lastIp.Equals currentIp)
 
-let rec workerTask lastIp =
-    async {
-        do! Async.Sleep(300000)
+let fiveMinutes = 300000
+let rec workerTask emailConfig lastIp =
+    async {        
         let! currentIp = getPublicIp ()
 
         if checkCondition (lastIp, currentIp) then
-            printfn $"Ip changed, send email: %s{lastIp} %s{currentIp}"
-            sendEmail lastIp currentIp
+            printfn $"%A{DateTime.Now} Ip changed, send email: %s{lastIp} %s{currentIp}"
+            sendEmail emailConfig lastIp currentIp
             printfn "Press Enter to exit the program..."
-        return! workerTask currentIp
+        else
+            printfn $"%A{DateTime.Now} Ip not changed: %s{lastIp} %s{currentIp}"
+            
+        do! Async.Sleep(fiveMinutes)
+        return! workerTask emailConfig currentIp
     }
 
-
+let readPassword () =
+    let rec readChars chars =
+        let keyInfo = Console.ReadKey(true)
+        if keyInfo.Key = ConsoleKey.Enter then
+            printfn ""
+            String(Array.ofList (List.rev chars))
+        elif keyInfo.Key = ConsoleKey.Backspace && chars <> [] then
+            printf "\b \b"
+            readChars (List.tail chars)
+        elif keyInfo.Key <> ConsoleKey.Backspace then
+            Console.Write("*")
+            readChars (keyInfo.KeyChar :: chars)
+        else
+            readChars chars
+    readChars []
 
 [<EntryPoint>]
 let main argv =
+    printfn "Please enter From Address"
+    let fromAddress = Console.ReadLine()
+    printfn "Please enter To Address"
+    let toAddress = Console.ReadLine()
+    printfn "Please enter password"
+    let password = readPassword()
+    
+    let emailConfig = createEmailConfig fromAddress toAddress password 
+    
     printfn "Press Enter to exit the program..."
     let startingIp = "1.1.1.1"
 
     let cts = new System.Threading.CancellationTokenSource()
-    Async.Start(workerTask startingIp, cts.Token)
+    Async.Start(workerTask emailConfig startingIp, cts.Token)
 
     Console.ReadLine() |> ignore
 
