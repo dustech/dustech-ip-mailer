@@ -22,11 +22,17 @@ let getPublicIp () =
         return ip.Trim()
     }
 
-let sendEmail emailConfig lastIp currentIp =
+let sendEmail emailConfig lastIp currentIp isCheck =
     let fromAddress = emailConfig.FromAddress
     let toAddress = emailConfig.ToAddress
-    let subject = "IP change"
-    let body = $"Your ip is changed from %s{lastIp} to %s{currentIp}"
+    
+    let subject = "IP change/check"
+    
+    let body = if isCheck then
+                   $"Check - Your IP is %s{currentIp}"
+               else
+                   $"Your ip is changed from %s{lastIp} to %s{currentIp}"
+    
     let password = emailConfig.Password
 
     let smtpClient = new SmtpClient("smtp.office365.com", 587)
@@ -49,23 +55,25 @@ let sendEmail emailConfig lastIp currentIp =
 let checkCondition (lastIp, currentIp) = not (lastIp.Equals currentIp)
 
 let fiveMinutes = 300000
-let halfMinute = 30000
+let halfMinute = 1000
 let rec workerTask emailConfig lastIp counter =
     async {        
         let! currentIp = getPublicIp ()
-
+        
+        printfn $"Counter: %d{counter}"
+        
         if checkCondition (lastIp, currentIp) then
             printfn $"%A{DateTime.Now} Ip changed, send email: %s{lastIp} %s{currentIp}"
-            sendEmail emailConfig lastIp currentIp
+            sendEmail emailConfig lastIp currentIp false
             printfn "Press Enter to exit the program..."
-        elif counter % 10 = 0 then
+        elif counter % 6 = 0 then
             printfn $"%A{DateTime.Now} check ip, send email: %s{lastIp} %s{currentIp}"
-            sendEmail emailConfig lastIp currentIp
+            sendEmail emailConfig lastIp currentIp true
             printfn "Press Enter to exit the program..."
         else            
             printfn $"%A{DateTime.Now} Ip not changed: %s{lastIp} %s{currentIp}"
             
-        do! Async.Sleep(halfMinute)
+        do! Async.Sleep(fiveMinutes)
         return! workerTask emailConfig currentIp (counter+1)
     }
 
