@@ -49,7 +49,8 @@ let sendEmail emailConfig lastIp currentIp =
 let checkCondition (lastIp, currentIp) = not (lastIp.Equals currentIp)
 
 let fiveMinutes = 300000
-let rec workerTask emailConfig lastIp =
+let halfMinute = 30000
+let rec workerTask emailConfig lastIp counter =
     async {        
         let! currentIp = getPublicIp ()
 
@@ -57,11 +58,15 @@ let rec workerTask emailConfig lastIp =
             printfn $"%A{DateTime.Now} Ip changed, send email: %s{lastIp} %s{currentIp}"
             sendEmail emailConfig lastIp currentIp
             printfn "Press Enter to exit the program..."
-        else
+        elif counter % 10 = 0 then
+            printfn $"%A{DateTime.Now} check ip, send email: %s{lastIp} %s{currentIp}"
+            sendEmail emailConfig lastIp currentIp
+            printfn "Press Enter to exit the program..."
+        else            
             printfn $"%A{DateTime.Now} Ip not changed: %s{lastIp} %s{currentIp}"
             
-        do! Async.Sleep(fiveMinutes)
-        return! workerTask emailConfig currentIp
+        do! Async.Sleep(halfMinute)
+        return! workerTask emailConfig currentIp (counter+1)
     }
 
 let readPassword () =
@@ -95,7 +100,7 @@ let main argv =
     let startingIp = "1.1.1.1"
 
     let cts = new System.Threading.CancellationTokenSource()
-    Async.Start(workerTask emailConfig startingIp, cts.Token)
+    Async.Start(workerTask emailConfig startingIp 0, cts.Token)
 
     Console.ReadLine() |> ignore
 
