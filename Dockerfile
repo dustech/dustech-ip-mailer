@@ -20,7 +20,7 @@ RUN dotnet publish -c release -o /app --no-restore
 
 # final stage/image
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
-FROM base as final
+FROM base AS final
 WORKDIR /app
 COPY --from=build /app ./
 CMD ["bash"]
