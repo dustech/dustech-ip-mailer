@@ -14,12 +14,15 @@ let createEmailConfig f t p =  { FromAddress = f; ToAddress = t; Password = p }
 let getPublicIp () =
     async {
         use client = new HttpClient()
+        client.Timeout <- TimeSpan.FromSeconds(10.0) 
 
-        let! ip =
-            client.GetStringAsync("https://api.ipify.org")
-            |> Async.AwaitTask
-
-        return ip.Trim()
+        try
+            let! ip = client.GetStringAsync("https://api.ipify.org") |> Async.AwaitTask
+            return Some(ip.Trim())
+        with
+        | ex ->
+            printfn $"Error getting public IP: %s{ex.Message}"
+            return None
     }
 
 let sendEmail emailConfig lastIp currentIp isCheck =
@@ -58,23 +61,27 @@ let fiveMinutes = 300000
 let halfMinute = 1000
 let rec workerTask emailConfig lastIp counter =
     async {        
-        let! currentIp = getPublicIp ()
-        
-        printfn $"Counter: %d{counter}"
-        
-        if checkCondition (lastIp, currentIp) then
-            printfn $"%A{DateTime.Now} Ip changed, send email: %s{lastIp} %s{currentIp}"
-            sendEmail emailConfig lastIp currentIp false
-            printfn "Press Enter to exit the program..."
-        elif counter % 6 = 0 then
-            printfn $"%A{DateTime.Now} check ip, send email: %s{lastIp} %s{currentIp}"
-            sendEmail emailConfig lastIp currentIp true
-            printfn "Press Enter to exit the program..."
-        else            
-            printfn $"%A{DateTime.Now} Ip not changed: %s{lastIp} %s{currentIp}"
-            
-        do! Async.Sleep(fiveMinutes)
-        return! workerTask emailConfig currentIp (counter+1)
+         let! maybeCurrentIp = getPublicIp ()
+
+        match maybeCurrentIp with
+        | Some currentIp ->
+            printfn $"Counter: %d{counter}"
+
+            if checkCondition (lastIp, currentIp) then
+                printfn $"%A{DateTime.Now} Ip changed, send email: %s{lastIp} %s{currentIp}"
+                sendEmail emailConfig lastIp currentIp false
+            elif counter % 6 = 0 then
+                printfn $"%A{DateTime.Now} check ip, send email: %s{lastIp} %s{currentIp}"
+                sendEmail emailConfig lastIp currentIp true
+            else
+                printfn $"%A{DateTime.Now} Ip not changed: %s{lastIp} %s{currentIp}"
+
+            do! Async.Sleep(fiveMinutes)
+            return! workerTask emailConfig currentIp (counter + 1)
+        | None ->
+            printfn "Failed to get current IP. Retrying in 30 seconds..."
+            do! Async.Sleep(halfMinute)
+            return! workerTask emailConfig lastIp counter
     }
 
 let readPassword () =
